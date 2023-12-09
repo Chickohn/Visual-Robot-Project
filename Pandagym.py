@@ -1,0 +1,208 @@
+import gymnasium as gym
+import panda_gym
+import numpy as np
+from stable_baselines3 import DDPG
+from time import sleep
+from typing import Any, Dict, Tuple
+from typing import Optional
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+from panda_gym.envs.core import RobotTaskEnv
+from panda_gym.envs.robots.panda import Panda
+from panda_gym.envs.core import Task
+from panda_gym.pybullet import PyBullet
+from panda_gym.utils import angle_distance
+import pybullet as p
+
+
+class CustomFlip(Task):
+    def __init__(
+        self,
+        sim: PyBullet,
+        reward_type: str = "sparse",
+        distance_threshold: float = 0.2,
+        obj_xy_range: float = 0.3,
+    ) -> None:
+        super().__init__(sim)
+        self.reward_type = reward_type
+        self.distance_threshold = distance_threshold
+        self.object_size = 0.04
+        self.obj_range_low = np.array([-obj_xy_range / 2, -obj_xy_range / 2, 0])
+        self.obj_range_high = np.array([obj_xy_range / 2, obj_xy_range / 2, 0])
+        with self.sim.no_rendering():
+            self._create_scene()
+
+    def _create_scene(self) -> None:
+        """Create the scene."""
+        self.sim.create_plane(z_offset=-0.4)
+        self.sim.create_table(length=1.1, width=0.7, height=0.4, x_offset=-0.3)
+        self.sim.create_box(
+            body_name="object",
+            half_extents=np.ones(3) * self.object_size / 2,
+            mass=1.0,
+            position=np.array([0.0, 0.0, self.object_size / 2]),
+            rgba_color=np.array([1.0, 1.0, 1.0, 0.5]),
+            texture="colored_cube.png",
+        )
+        self.sim.create_box(
+            body_name="target",
+            half_extents=np.ones(3) * self.object_size / 2,
+            mass=0.0,
+            ghost=True,
+            position=np.array([0.0, 0.0, 3 * self.object_size / 2]),
+            rgba_color=np.array([1.0, 1.0, 1.0, 0.5]),
+            texture="colored_cube.png",
+        )
+
+    def get_obs(self) -> np.ndarray:
+        # position, rotation of the object
+        object_position = self.sim.get_base_position("object")
+        object_rotation = self.sim.get_base_rotation("object", "quaternion")
+        object_velocity = self.sim.get_base_velocity("object")
+        object_angular_velocity = self.sim.get_base_angular_velocity("object")
+        observation = np.concatenate([object_position, object_rotation, object_velocity, object_angular_velocity])
+        return observation
+
+    def get_achieved_goal(self) -> np.ndarray:
+        object_rotation = np.array(self.sim.get_base_rotation("object", "quaternion"))
+        return object_rotation
+
+    def reset(self) -> None:
+        self.goal = self._sample_goal()
+        object_position, object_orientation = self._sample_object()
+        self.sim.set_base_pose("target", np.array([0.0, 0.0, 3 * self.object_size / 2]), self.goal)
+        self.sim.set_base_pose("object", object_position, object_orientation)
+
+    def _sample_goal(self) -> np.ndarray:
+        """Randomize goal."""
+        goal = R.random().as_quat()
+        return goal
+
+    def _sample_object(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Randomize start position of object."""
+        object_position = np.array([0.0, 0.0, self.object_size / 2])
+        noise = self.np_random.uniform(self.obj_range_low, self.obj_range_high)
+        object_position += noise
+        object_rotation = np.zeros(3)
+        return object_position, object_rotation
+
+    def is_success(self, achieved_goal: np.ndarray, desired_goal: np.ndarray) -> np.ndarray:
+        d = angle_distance(achieved_goal, desired_goal)
+        return np.array(d < self.distance_threshold, dtype=bool)
+
+    def compute_reward(self, achieved_goal, desired_goal, info: Dict[str, Any]) -> np.ndarray:
+        d = angle_distance(achieved_goal, desired_goal)
+        if self.reward_type == "sparse":
+            return -np.array(d > self.distance_threshold, dtype=np.float32)
+        else:
+            return -d.astype(np.float32)
+        
+class CustomFlipEnv(RobotTaskEnv):
+    def __init__(
+        self,
+        render_mode: str = "rgb_array",
+        reward_type: str = "sparse",
+        control_type: str = "ee",
+        renderer: str = "Tiny",
+        render_width: int = 720,
+        render_height: int = 480,
+        render_target_position: Optional[np.ndarray] = None,
+        render_distance: float = 1.4,
+        render_yaw: float = 45,
+        render_pitch: float = -30,
+        render_roll: float = 0,
+    ) -> None:
+        sim = PyBullet(render_mode=render_mode, renderer=renderer)
+        robot = Panda(sim, block_gripper=False, base_position=np.array([-0.6, 0.0, 0.0]), control_type=control_type)
+        task = CustomFlip(sim, reward_type=reward_type)
+        super().__init__(
+            robot,
+            task,
+            render_width=render_width,
+            render_height=render_height,
+            render_target_position=render_target_position,
+            render_distance=render_distance,
+            render_yaw=render_yaw,
+            render_pitch=render_pitch,
+            render_roll=render_roll,
+        )
+    def setup_camera(self, target_position=[0, 0, 0], distance=1.5, yaw=50, pitch=-35, roll=0, fov=60, aspect=1, near_val=0.1, far_val=100):
+        """Set up the camera view."""
+        self.view_matrix = p.computeViewMatrixFromYawPitchRoll(
+            cameraTargetPosition=target_position,
+            distance=distance,
+            yaw=yaw,
+            pitch=pitch,
+            roll=roll,
+            upAxisIndex=2
+        )
+        self.projection_matrix = p.computeProjectionMatrixFOV(
+            fov=fov,
+            aspect=aspect,
+            nearVal=near_val,
+            farVal=far_val
+        )
+    def get_camera_image(self):
+        """Capture an image from the current camera view."""
+        width, height, rgb_img, depth_img, seg_img = p.getCameraImage(
+            width=640,
+            height=480,
+            viewMatrix=self.view_matrix,
+            projectionMatrix=self.projection_matrix,
+            physicsClientId=self.sim.client_id
+        )
+        rgb_img = np.reshape(rgb_img, (height, width, 4))  # Including alpha channel
+        return rgb_img, depth_img, seg_img
+    def step(self, action):
+        # Call the original step method
+        observation, reward, terminated, truncated, info = super().step(action)
+
+        # Capture and process the camera image here
+        rgb_img, depth_img, seg_img = self.get_camera_image()
+
+        # You can add the image data to the 'info' dictionary if you want to return it
+        info['camera_rgb'] = rgb_img
+        info['camera_depth'] = depth_img
+        info['camera_seg'] = seg_img
+
+        return observation, reward, terminated, truncated, info
+
+
+    def reset(self, seed=None, options=None):
+        # Call the original reset method
+        observation, info = super().reset(seed=seed, options=options)
+
+        # Set up the camera for the new episode
+        self.setup_camera()
+
+        # Capture and process the initial camera image
+        rgb_img, depth_img, seg_img = self.get_camera_image()
+
+        # You can add the image data to the 'info' dictionary if you want to return it
+        info['initial_camera_rgb'] = rgb_img
+        info['initial_camera_depth'] = depth_img
+        info['initial_camera_seg'] = seg_img
+
+        return observation, info
+
+# Create the environment
+env = gym.make('PandaFlip-v3', render_mode="human") 
+# env = CustomFlipEnv(render_mode="human") 
+
+# Initialize the RL agent
+model = DDPG("MultiInputPolicy", env, learning_rate=0.0005, batch_size=64, gamma=0.99, verbose=1)
+
+# Train the agent
+model.learn(total_timesteps=100000)  # Number of timesteps to train for
+
+# Test the trained agent
+observation, info = env.reset()
+for _ in range(1000):
+    action, _states = model.predict(observation, deterministic=True)
+    observation, reward, terminated, truncated, info = env.step(action)
+
+    if terminated or truncated:
+        observation, info = env.reset()
+
+#recreate flip task. Improve rewards. Stop sparse rewards -> make dense as they get closer to the goal. ie touching cube, grasping cube, orientating cube closer to the goal...
+# tensor board, github, kuka camera
