@@ -19,7 +19,7 @@ class CustomFlip(Task):
     def __init__(
         self,
         sim: PyBullet,
-        reward_type: str = "sparse",
+        reward_type: str = "dense",
         distance_threshold: float = 0.2,
         obj_xy_range: float = 0.3,
     ) -> None:
@@ -101,7 +101,7 @@ class CustomFlipEnv(RobotTaskEnv):
     def __init__(
         self,
         render_mode: str = "rgb_array",
-        reward_type: str = "sparse",
+        reward_type: str = "dense",
         control_type: str = "ee",
         renderer: str = "Tiny",
         render_width: int = 720,
@@ -190,7 +190,7 @@ env = gym.make('PandaFlip-v3', render_mode="human")
 # env = CustomFlipEnv(render_mode="human") 
 
 # Initialize the RL agent
-model = DDPG("MultiInputPolicy", env, learning_rate=0.0005, batch_size=64, gamma=0.99, verbose=1)
+model = DDPG("MultiInputPolicy", env, learning_rate=0.01, batch_size=64, gamma=0.99, verbose=1)
 
 # Train the agent
 model.learn(total_timesteps=100000)  # Number of timesteps to train for
