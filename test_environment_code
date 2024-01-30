@@ -1,115 +1,78 @@
 import gymnasium as gym
 import panda_gym
-import numpy as np
 from stable_baselines3 import DDPG
 from time import sleep
-from typing import Any, Dict, Tuple
-from typing import Optional
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 from panda_gym.envs.core import RobotTaskEnv
 from panda_gym.envs.robots.panda import Panda
 from panda_gym.envs.core import Task
 from panda_gym.pybullet import PyBullet
-from panda_gym.utils import angle_distance
-from panda_gym.utils import distance
 import pybullet as p
-
-class MyTask(Task):
-    def __init__(self, sim, reward_type: str = "dense", obj_xy_range: float = 0.3,):
-        super().__init__(sim)
-        self.reward_type = reward_type
-        self.object_size = 0.04
-        self.obj_range_low = np.array([-obj_xy_range / 2, -obj_xy_range / 2, 0])
-        self.obj_range_high = np.array([obj_xy_range / 2, obj_xy_range / 2, 0])
-        with self.sim.no_rendering():
-            self._create_scene()
-
-    def _create_scene(self) -> None:
-        """Create the scene."""
-        self.sim.create_plane(z_offset=-0.4)
-        self.sim.create_table(length=1.1, width=0.7, height=0.4, x_offset=-0.3)
-        self.sim.create_box(
-            body_name="object",
-            half_extents=np.ones(3) * self.object_size / 2,
-            mass=1.0,
-            ghost=False,
-            position=np.array([0.0, 0.0, self.object_size / 2]),
-            rgba_color=np.array([1.0, 1.0, 1.0, 0.5]),
-            texture="colored_cube.png",
-        )
-        self.sim.create_box(
-            body_name="target",
-            half_extents=np.ones(3) * self.object_size / 2,
-            mass=0.0,
-            ghost=True,
-            position=np.array([0.0, 0.0, 3 * self.object_size / 2]),
-            rgba_color=np.array([1.0, 1.0, 1.0, 0.5]),
-            texture="colored_cube.png",
-        )
-
-    def reset(self):
-        # self.goal = R.random().as_quat()
-        # object_position, object_orientation = self._sample_object()
-        # self.sim.set_base_pose("target", np.array([0.0, 0.0, 3 * self.object_size / 2]), self.goal)
-        # self.sim.set_base_pose("object", object_position, object_orientation)
-        # randomly sample a goal position
-        self.goal = np.random.uniform(-10, 10, 3)
-        # reset the position of the object
-        self.sim.set_base_pose("object", position=np.array([0.0, 0.0, 0.0]), orientation=np.array([1.0, 0.0, 0.0, 0.0]))
-
-    def _sample_object(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Randomize start position of object."""
-        object_position = np.array([0.0, 0.0, self.object_size / 2])
-        noise = self.np_random.uniform(self.obj_range_low, self.obj_range_high)
-        object_position += noise
-        object_rotation = np.zeros(3)
-        return object_position, object_rotation
-
-    def get_obs(self):
-        # the observation is the position of the object
-        object_position = self.sim.get_base_position("object")
-        object_rotation = self.sim.get_base_rotation("object", "quaternion")
-        object_velocity = self.sim.get_base_velocity("object")
-        object_angular_velocity = self.sim.get_base_angular_velocity("object")
-        observation = np.concatenate([object_position, object_rotation, object_velocity, object_angular_velocity])
-        return observation
-
-    def get_achieved_goal(self):
-        # the achieved goal is the current position of the object
-        achieved_goal = self.sim.get_base_position("object")
-        return achieved_goal
-
-    def is_success(self, achieved_goal, desired_goal, info={}):  # info is here for consistancy
-        # compute the distance between the goal position and the current object position
-        d = distance(achieved_goal, desired_goal)
-        # return True if the distance is < 1.0, and False otherwise
-        return np.array(d < 1.0, dtype=bool)
-
-    def compute_reward(self, achieved_goal, desired_goal, info={}):  # info is here for consistancy
-        # for this example, reward = 1.0 if the task is successfull, 0.0 otherwise
-        return self.is_success(achieved_goal, desired_goal, info).astype(np.float32)
-    
+import cv2
+import numpy as np
+from test_task_code import MyTask
 
 class MyRobotTaskEnv(RobotTaskEnv):
     """My robot-task environment."""
 
-    def __init__(self, render_mode, renderer: str = "OpenGL"):
-        sim = PyBullet(render_mode=render_mode, renderer=renderer)
-        robot = Panda(sim, base_position=np.array([-0.6, 0.0, 0.0]))
+    def __init__(self, render_mode):
+        sim = PyBullet(render_mode=render_mode)
+        robot = Panda(sim, block_gripper=False, base_position=np.array([-0.6, 0.0, 0.0]), control_type= "ee")
         task = MyTask(sim)
         super().__init__(robot, task)
+
+    def render_camera(self):
+        joint_pos, joint_ori = p.getLinkState(0, linkIndex=1)[:2]
+        # Define the camera settings
+        offset = 0.2  # Raise the camera 20cm above the joint
+        camera_pos = [joint_pos[0], joint_pos[1], joint_pos[2] + offset]
+        # print(camera_pos)
+        # camera_pos = [1, 1, 1]  # Example position
+        target_pos = [0, 0, 0]  # Point the camera looks at
+        up_vector = [0, 0, 1]
+        view_matrix = p.computeViewMatrix(camera_pos, target_pos, up_vector)
+
+        # Define Field of View and other camera parameters
+        fov = 60
+        aspect = 1
+        near_val = 0.5
+        far_val = 3
+        projection_matrix = p.computeProjectionMatrixFOV(fov, aspect, near_val, far_val)
+
+        # Get the camera image
+        width, height, rgb_img, depth_img, seg_img = p.getCameraImage(width=640, height=480, viewMatrix=view_matrix, projectionMatrix=projection_matrix)
+
+        # Convert the image to a format OpenCV can use and show it
+        np_img = np.reshape(rgb_img, (height, width, 4))
+        cv2.imshow("Camera View", np_img)
+        cv2.waitKey(1)
 
 env = MyRobotTaskEnv(render_mode="human")
 
 observation, info = env.reset()
-
 for _ in range(10000):
     action = env.action_space.sample()
-    observation, reward, terminated, truncated, info = env.step(action)
+    try:
+        observation, reward, terminated, truncated, info = env.step(action)
+    except:
+        break
+
+    # Render camera image
+    env.render_camera()
 
     if terminated or truncated:
         observation, info = env.reset()
+
+cv2.destroyAllWindows()
+            
+
+# observation, info = env.reset()
+
+# for _ in range(10000):
+#     action = env.action_space.sample()
+#     observation, reward, terminated, truncated, info = env.step(action)
+
+#     if terminated or truncated:
+#         observation, info = env.reset()
 
 # class CustomFlip(Task):
 #     def __init__(
