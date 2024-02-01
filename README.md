@@ -4,7 +4,7 @@ Setup:
 Enter the following into the terminal upon installing the files:
 Step 1 - "python -m venv venv"
 
-Step 2 - "venv/scripts/activate"
+Step 2 - "venv/scripts/activate" or "source venv/bin/activate" on mac
 
 Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard"
 
