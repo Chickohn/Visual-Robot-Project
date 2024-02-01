@@ -27,6 +27,7 @@ To do:
 - tensorboard
 
 (In general):
+- SegmentAnything (Meta)
 - Create beaker URDFs and any other objects I might need (In Blender)
 - Create a working method for training the robot via dense rewards (or something else if I find a better method)
 - Train the robot to look at the camera data instead and be able to pick things up using that data instead
