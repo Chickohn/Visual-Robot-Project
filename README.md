@@ -10,6 +10,8 @@ Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard"
 
 Then it should work correctly
 
+To load the tensorboard logs: "tensorboard --logdir=./logs/"
+
 ------------------------------------------------------------------
 
 Notes for meeting:

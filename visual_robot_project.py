@@ -2,7 +2,7 @@ import os
 import gymnasium as gym
 import panda_gym
 import numpy as np
-from stable_baselines3 import DDPG
+from stable_baselines3 import A2C
 from stable_baselines3.common.logger import configure
 from time import sleep
 from typing import Any, Dict, Tuple, Optional
@@ -15,21 +15,29 @@ from panda_gym.utils import angle_distance
 import pybullet as p
 
 # Create the environment
-env = gym.make('PandaReachDense-v3', render_mode="human")
+env = gym.make('PandaReach-v3', render_mode="human")
 print("Environment:", env)
+
+model_path = "./trained_models/trained_reach"
 
 # Configure logger for TensorBoard
 log_dir = "./logs/"
 os.makedirs(log_dir, exist_ok=True)
-logger = configure(log_dir, ["stdout", "tensorboard"])
 
-# Initialize the RL agent
-model = DDPG("MultiInputPolicy", env, learning_rate=0.001, batch_size=32, gamma=0.99, verbose=1, tensorboard_log=log_dir)
+if os.path.exists(model_path):
+
+    model = A2C.load(model_path)
+    print("loaded existing model from", model_path)
+
+else:
+
+    # Initialize the RL agent
+    model = A2C("MultiInputPolicy", env, learning_rate=0.001, gamma=0.99, verbose=1, tensorboard_log=log_dir)
+    
 
 # Train the agent
-model.learn(total_timesteps=1000, log_interval=50)  # Number of timesteps to train for
+model.learn(total_timesteps=1000, log_interval=10)  # Number of timesteps to train for
 
-model_path = "./trained_models/trained_reach"
 os.makedirs(os.path.dirname(model_path), exist_ok=True)
 model.save(model_path)
 
