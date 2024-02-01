@@ -6,7 +6,7 @@ Step 1 - "python -m venv venv"
 
 Step 2 - "venv/scripts/activate"
 
-Step 3 - "pip install panda-gym stable_baselines3 opencv-python"
+Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard"
 
 Then it should work correctly
 
@@ -24,6 +24,7 @@ To do:
 (In the next two weeks):
 - Figure out how to specify dense rewards to teach robot to move to the right place and pick it up, and then rotate correctly
 - Decide on how the camera will function, i.e. What position and where it will look, as well as what method of visual perception I will need to use to identify beakers
+- tensorboard
 
 (In general):
 - Create beaker URDFs and any other objects I might need (In Blender)
