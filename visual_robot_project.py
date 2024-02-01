@@ -15,7 +15,7 @@ from panda_gym.utils import angle_distance
 import pybullet as p
 
 # Create the environment
-env = gym.make('PandaReach-v3', render_mode="human")
+env = gym.make('PandaReachDense-v3', render_mode="human")
 print("Environment:", env)
 
 # Configure logger for TensorBoard
@@ -24,10 +24,10 @@ os.makedirs(log_dir, exist_ok=True)
 logger = configure(log_dir, ["stdout", "tensorboard"])
 
 # Initialize the RL agent
-model = DDPG("MultiInputPolicy", env, learning_rate=0.01, batch_size=32, gamma=0.99, verbose=1)
+model = DDPG("MultiInputPolicy", env, learning_rate=0.001, batch_size=32, gamma=0.99, verbose=1, tensorboard_log=log_dir)
 
 # Train the agent
-model.learn(total_timesteps=1000)  # Number of timesteps to train for
+model.learn(total_timesteps=1000, log_interval=50)  # Number of timesteps to train for
 
 model_path = "./trained_models/trained_reach"
 os.makedirs(os.path.dirname(model_path), exist_ok=True)
