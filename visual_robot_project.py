@@ -36,7 +36,7 @@ else:
     
 
 # Train the agent
-model.learn(total_timesteps=1000, log_interval=10)  # Number of timesteps to train for
+model.learn(total_timesteps=50000, log_interval=100)  # Number of timesteps to train for
 
 os.makedirs(os.path.dirname(model_path), exist_ok=True)
 model.save(model_path)
