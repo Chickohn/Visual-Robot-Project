@@ -6,7 +6,7 @@ Step 1 - "python -m venv venv"
 
 Step 2 - "venv/scripts/activate" or "source venv/bin/activate" on mac
 
-Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard"
+Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard tensorflow"
 
 Then it should work correctly
 
@@ -21,12 +21,13 @@ Completed:
 - Recreated a basic flip task
 - Tested some Image Segmentation
 - Looked at dense rewards in PandaFlipDense-v3 briefly
+- tensorboard
 
 To do:
 (In the next two weeks):
+- Integrate TensorFlow into the training
 - Figure out how to specify dense rewards to teach robot to move to the right place and pick it up, and then rotate correctly
 - Decide on how the camera will function, i.e. What position and where it will look, as well as what method of visual perception I will need to use to identify beakers
-- tensorboard
 
 (In general):
 - SegmentAnything (Meta)
