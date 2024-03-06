@@ -6,7 +6,7 @@ Step 1 - "python -m venv venv"
 
 Step 2 - "venv/scripts/activate" or "source venv/bin/activate" on mac
 
-Step 3 - "pip install panda-gym stable_baselines3 opencv-python tensorboard tensorflow"
+Step 3 - "pip install panda-gym stable_baselines3 stable-baselines3[extra] sb3_contrib opencv-python tensorboard tensorflow"
 
 Then it should work correctly
 
